@@ -84,6 +84,9 @@ public:
     bool setAsParentEnd() {
         if (endSelected) return false;
         endSelected = true;
+        // ignore the signal recieved when writing to a closed pipe
+        // we will deal with this in the write function
+        sigaction(SIGPIPE, &(struct sigaction){SIG_IGN}, NULL);
         closeUnusedEnds();
         return true;
     }
@@ -94,7 +97,16 @@ public:
      * @return the number of bytes written
      * */
     size_t writeP(const std::string& input) {
-        return write(output_pipe_file_descriptor[1], input.c_str(), input.size());
+        ssize_t bytesWritten = write(output_pipe_file_descriptor[1], input.c_str(), input.size());
+        // an error occurred
+        if (bytesWritten < 0) {
+            // the read end is closed
+            // this suggests that the owner of the other end has exited.
+            if (errno == EPIPE) {
+                // throw an exception saying the other end has exited.
+            }
+        }
+        return bytesWritten;
     }
 
     /**
